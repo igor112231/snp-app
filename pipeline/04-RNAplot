@@ -1,0 +1,47 @@
+#! /bin/bash
+function plot {
+    RNAplot --layout 4 --post "$($(dirname $0)/99-find-differences $1 $2 | awk 'NR == 1')" < $1
+    sed -i \
+        -e '/^\/outlinecolor/ c /outlinecolor {0.7 setgray} bind def' \
+        -e '/fsize 2 div 0/ c fsize 2 div 0 360 arc gsave stroke grestore fill' \
+        rna.ps
+    eps2eps rna.ps rna.eps
+    epstopdf rna.eps
+    pdf2svg rna.pdf ${1%.txt}.svg
+    svgo ${1%.txt}.svg
+    mv rna.ps wt.ps
+    rm rna.eps rna.pdf
+
+    RNAplot --layout 4 --post "$($(dirname $0)/99-find-differences $1 $2 | awk 'NR == 2')" < $2
+    sed -i \
+        -e '/^\/outlinecolor/ c /outlinecolor {0.7 setgray} bind def' \
+        -e '/fsize 2 div 0/ c fsize 2 div 0 360 arc gsave stroke grestore fill' \
+        rna.ps
+    eps2eps rna.ps rna.eps
+    epstopdf rna.eps
+    pdf2svg rna.pdf ${2%.txt}.svg
+    svgo ${2%.txt}.svg
+    rm rna.ps rna.eps rna.pdf
+}
+
+plot wt-dotbracket.txt mut-dotbracket.txt
+
+$(dirname $0)/98-find-domains wt-dotbracket.txt mut-dotbracket.txt
+
+for wt in wt-dotbracket-*.txt; do
+    domain_wt=($(echo ${wt} | sed -E 's/.+-([0-9]+)-([0-9]+).+/\1 \2/g'))
+    min_err=1000000
+
+    for mut in mut-dotbracket-*.txt; do
+        domain_mut=($(echo ${mut} | sed -E 's/.+-([0-9]+)-([0-9]+).+/\1 \2/g'))
+        err=$(echo "scale=0; sqrt((${domain_wt[0]}-${domain_mut[0]})^2 + (${domain_wt[1]}-${domain_mut[1]})^2)" | bc -l)
+        if [[ ${err} -lt ${min_err} ]]; then
+            min_err=${err}
+            min_mut=${mut}
+        fi
+    done
+
+    if ! diff -q ${wt} ${min_mut}; then
+        plot ${wt} ${min_mut}
+    fi
+done

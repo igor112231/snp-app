@@ -1,0 +1,61 @@
+version: "1.0"
+services:
+  phpmyadmin:
+    container_name: phpmyadmin
+    image: phpmyadmin/phpmyadmin:latest
+    restart: always
+    ports:
+      - 8081:80
+    networks:
+      - backend
+
+  db:
+    container_name: mysql
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: qwas
+    ports:
+      - "3306:3306"
+    networks:
+      - backend
+    volumes:
+      - db-vol:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  backend:
+    container_name: backend_snp
+    restart: always
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MYSQL_HOST=mysql
+      - MYSQL_DATABASE=snp
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=qwas
+    networks:
+      - backend
+    depends_on:
+      - db
+
+  frontend:
+    container_name: next_frontend
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+networks:
+  backend:
+
+volumes:
+  db-vol:

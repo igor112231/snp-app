@@ -5,8 +5,13 @@ WORKDIR /usr/src/backend
 RUN pip install Flask
 RUN pip install mysql-connector-python
 
+
+
 # Kopiujemy kod źródłowy
 COPY . .
+
+#Skopiowany plik reqirements - instalowanie aplikacji
+RUN pip install -r requirements.txt
 
 # Ustawiamy port na 8080
 EXPOSE 8080

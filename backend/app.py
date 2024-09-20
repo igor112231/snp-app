@@ -1,8 +1,12 @@
+import uuid
 from flask import Flask, jsonify, request
+from flasgger import Swagger
 import mysql.connector
 import os
 
 app = Flask(__name__)
+swagger = Swagger(app, template_file='openapi.yml')  # Ładowanie zewnętrznego pliku YAML
+
 
 # Konfiguracja połączenia z bazą danych
 db_config = {
@@ -13,6 +17,77 @@ db_config = {
 }
 
 
+# Przykładowe dane w pamięci (możesz to zamienić na bazę danych)
+tasks = {}
+
+@app.route('/')
+def home():
+    return jsonify({"message": "Welcome to the Analysis Results API!"}), 200
+
+#Jeszcze trzeba zmienić id z inta na format UUID w bazie danych !
+# Funkcja do uzyskania połączenia z bazą danych
+def connect_to_database():
+    return mysql.connector.connect(**db_config)
+
+@app.route('/api/analyze', methods=['POST'])
+def submit_analysis():
+    data = request.json
+    sequence_wt = data.get('sequence_wt')
+    sequence_mt = data.get('sequence_mt')
+
+    if not sequence_wt or not sequence_mt:
+        return jsonify({"error": "Invalid input format"}), 400
+
+    # Generowanie unikalnego identyfikatora
+    task_id = str(uuid.uuid4())
+
+    # Połączenie z bazą danych
+    conn = connect_to_database()
+    cursor = conn.cursor()
+    #Tu jeszcze można dodać status jako pole w bazie danych 
+    cursor.execute(
+    "INSERT INTO analysis_results (id, normalSequence, wildSequence) VALUES (%s, %s, %s)",
+    (task_id, sequence_mt, sequence_wt)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"id": task_id}), 200
+
+@app.route('/api/status/<string:id>', methods=['GET'])
+def check_status(id):
+    conn = connect_to_database()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT status FROM analysis_results WHERE id = %s", (id,))
+    task = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if task is None:
+        return jsonify({"error": "Invalid task id"}), 404
+
+    return jsonify({"status": task['status'], "reason": None}), 200
+
+@app.route('/api/result/<string:id>', methods=['GET'])
+def get_result(id):
+    conn = connect_to_database()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT result FROM analysis_results WHERE id = %s", (id,))
+    task = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if task is None:
+        return jsonify({"error": "Invalid task id"}), 404
+
+    if task['status'] != "DONE":
+        return jsonify({"error": "Task is not completed yet"}), 404
+
+    return jsonify(task['result']), 200
+
+#==========================================================================================================================
 # Funkcja do uzyskania połączenia z bazą danych
 def connect_to_database():
     try:

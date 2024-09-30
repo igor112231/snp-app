@@ -121,7 +121,31 @@ paths:
                         type: integer
                         description: First distance measure
                         example: 16
+                      h:
+                        type: integer
+                        description: Second distance measure
+                        example: 2
+                      w:
+                        type: integer
+                        description: Second distance measure
+                        example: 2
                       c:
+                        type: integer
+                        description: Second distance measure
+                        example: 2
+                      F:
+                        type: integer
+                        description: First distance measure
+                        example: 16
+                      H:
+                        type: integer
+                        description: Second distance measure
+                        example: 2
+                      W:
+                        type: integer
+                        description: Second distance measure
+                        example: 2
+                      C:
                         type: integer
                         description: Second distance measure
                         example: 2
@@ -136,211 +160,4 @@ paths:
                     type: string
                     example: "Invalid task id"
 
-components:
-  schemas:
-    Task:
-      type: object
-      properties:
-        id:
-          type: string
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        status:
-          type: string
-          example: "IN_PROGRESS"
-        result:
-          type: object
-          properties:
-            RNApdist:
-              type: number
-              format: float
-              example: 0.334
-            RNAdistance:
-              type: object
-              properties:
-                f:
-                  type: integer
-                  example: 16
-                c:
-                  type: integer
-                  example: 2
 
-# database swagger spec
-
-paths:
-  /test-db:
-    get:
-      summary: Test database connection
-      responses:
-        '200':
-          description: Successfully connected to the database.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  DATABASE():
-                    type: string
-                    description: Name of the connected database.
-        '500':
-          description: Failed to connect to the database.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message.
-
-  /analysis-results:
-    post:
-      summary: Add a new analysis result
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                normalSequence:
-                  type: string
-                  description: Normal sequence being analyzed.
-                wildSequence:
-                  type: string
-                  description: Wild sequence being analyzed.
-                result:
-                  type: string
-                  description: Result of the analysis.
-              required:
-                - normalSequence
-                - wildSequence
-                - result
-      responses:
-        '201':
-          description: Analysis result added successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Result added successfully!"
-        '500':
-          description: Failed to connect to the database.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Failed to connect to the database"
-
-    get:
-      summary: Retrieve all analysis results
-      responses:
-        '200':
-          description: A list of all analysis results.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                      description: ID of the result.
-                    normalSequence:
-                      type: string
-                      description: Normal sequence being analyzed.
-                    wildSequence:
-                      type: string
-                      description: Wild sequence being analyzed.
-                    result:
-                      type: string
-                      description: Result of the analysis.
-        '500':
-          description: Failed to connect to the database.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message.
-
-  /add-analysis-result:
-    get:
-      summary: Add a new analysis result using query parameters
-      parameters:
-        - in: query
-          name: normalSequence
-          schema:
-            type: string
-          required: true
-          description: Normal sequence being analyzed.
-        - in: query
-          name: wildSequence
-          schema:
-            type: string
-          required: true
-          description: Wild sequence being analyzed.
-        - in: query
-          name: result
-          schema:
-            type: string
-          required: true
-          description: Result of the analysis.
-      responses:
-        '201':
-          description: Analysis result added successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Result added successfully!"
-        '400':
-          description: Missing parameters in the request.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Missing parameters"
-        '500':
-          description: Failed to connect to the database.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Failed to connect to the database"
-
-components:
-  schemas:
-    AnalysisResult:
-      type: object
-      properties:
-        normalSequence:
-          type: string
-          description: Normal sequence being analyzed.
-        wildSequence:
-          type: string
-          description: Wild sequence being analyzed.
-        result:
-          type: string
-          description: Result of the analysis.
-      required:
-        - normalSequence
-        - wildSequence
-        - result

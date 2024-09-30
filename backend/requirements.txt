@@ -1,1 +1,5 @@
 flasgger
+flask_cors
+eventlet
+Flask-SocketIO==5.3.3
+python-socketio==5.5.0

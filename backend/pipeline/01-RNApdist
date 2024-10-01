@@ -1,2 +1,36 @@
 #! /bin/bash
-cat wt.txt mut.txt | RNApdist > RNApdist-result.txt
+
+# Sprawdź, czy podano argumenty
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <path_to_id_directory>"
+    exit 1
+fi
+
+ID_DIR="$1"
+
+# Sprawdź, czy pliki istnieją
+WT_FILE="$ID_DIR/wt.txt"
+MUT_FILE="$ID_DIR/mut.txt"
+
+if [[ ! -f "$WT_FILE" ]]; then
+    echo "Error: wt.txt not found in $ID_DIR."
+    exit 1
+fi
+
+if [[ ! -f "$MUT_FILE" ]]; then
+    echo "Error: mut.txt not found in $ID_DIR."
+    exit 1
+fi
+
+# Uruchomienie RNApdist
+cat "$WT_FILE" "$MUT_FILE" | RNApdist > "$ID_DIR/RNApdist-result.txt"
+
+# Zmiana uprawnień do pliku z wynikami
+chmod 666 "$ID_DIR/RNApdist-result.txt"
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: RNApdist failed."
+    exit 1
+fi
+
+echo "RNApdist completed successfully."

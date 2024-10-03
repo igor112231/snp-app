@@ -1,38 +1,42 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { io } from "socket.io-client";
+
 
 const HomePage = () => {
     const [mutantSequence, setMutantSequence] = useState("");
     const [wildSequence, setWildSequence] = useState("");
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
-    const [wsError, setWsError] = useState(""); 
+    const [wsError, setWsError] = useState("");
 
     useEffect(() => {
         
-        const ws = new WebSocket("ws://localhost:8080/socket.io/");
+        const socket = io("http://localhost:8080", {
+            transports: ['websocket'] // Wymuszenie WebSocket
+        });
 
-        ws.onopen = () => {
+        socket.on("connect", () => {
             console.log("WebSocket is connected");
-        };
+        });
 
-        ws.onmessage = (event) => {
-            console.log("Message from server: ", event.data);
-        };
+        socket.on("message", (data) => {
+            console.log("Message from server: ", data);
+        });
 
-        ws.onerror = (event) => {
-            console.error("WebSocket error: ", event); 
-            setWsError("WebSocket connection error"); 
-        };
+        socket.on("error", (error) => {
+            console.error("WebSocket error: ", error);
+            setWsError("WebSocket connection error");
+        });
 
-        ws.onclose = () => {
+        socket.on("disconnect", () => {
             console.log("WebSocket connection closed");
-        };
+        });
 
-       
+        
         return () => {
-            ws.close();
+            socket.disconnect();
         };
     }, []);
 
@@ -41,11 +45,10 @@ const HomePage = () => {
 
         setMessage("");
         setError("");
-        setWsError(""); 
+        setWsError("");
 
-        
         const data = {
-            mutantSequence, 
+            mutantSequence,
             wildSequence,
         };
 
@@ -83,9 +86,9 @@ const HomePage = () => {
                     <p style={{ fontSize: "14px", color: "#555" }}>Enter the sequence of the mutant RNA.</p>
                     <input
                         type="text"
-                        id="mutantSequence"  
-                        value={mutantSequence}  
-                        onChange={(e) => setMutantSequence(e.target.value)}  
+                        id="mutantSequence"
+                        value={mutantSequence}
+                        onChange={(e) => setMutantSequence(e.target.value)}
                         required
                         style={{ width: "100%", padding: "10px", border: "1px solid #000", borderRadius: "3px" }}
                     />
@@ -108,7 +111,7 @@ const HomePage = () => {
             </form>
             {message && <p style={{ color: "green", textAlign: "center" }}>{message}</p>}
             {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}
-            {wsError && <p style={{ color: "red", textAlign: "center" }}>{wsError}</p>} {/* Wyświetlanie błędu WebSocket */}
+            {wsError && <p style={{ color: "red", textAlign: "center" }}>{wsError}</p>}
         </div>
     );
 };

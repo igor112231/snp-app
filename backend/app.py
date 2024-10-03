@@ -47,7 +47,7 @@ def run_pipeline(mutant_sequence, wild_sequence):
         # Uruchomienie analiz
         subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist'), pipeline_dir], check=True)
         
-        # Na razie jedynie wyniki RNApdist
+        # Na razie jedynie wyniki RNApdist wyswietlane
         with open(os.path.join(pipeline_dir, 'RNApdist-result.txt'), 'r') as f:
             rnapdist_result = f.read().strip()
         logger.debug(f"RNApdist result: {rnapdist_result}")

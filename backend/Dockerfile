@@ -1,49 +1,36 @@
 FROM python:3.9 AS backend
 
-# Ustawiamy katalog roboczy
-WORKDIR /usr/src/backend
-
-# Instalujemy narzędzia do kompilacji oraz zależności
+# Instalacja narzędzi systemowych i zależności
 RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
     cmake \
     git \
-    libboost-all-dev \
-    automake \
-    gawk \
     ghostscript \
     texlive \
     pdf2svg \
     npm \
+    liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Pobieramy ViennaRNA
-RUN wget https://www.tbi.univie.ac.at/RNA/download/sourcecode/2_6_x/ViennaRNA-2.6.4.tar.gz \
-    && tar -zxvf ViennaRNA-2.6.4.tar.gz
-
-# Kompilacja ViennaRNA
-WORKDIR /usr/src/backend/ViennaRNA-2.6.4
-RUN ./configure --prefix=/usr/local
-RUN make -j1 && make install
+# Kopiuje i instaluje ViennaRNA z pliku .deb
+COPY viennarna_2.6.4-1_amd64.deb ./
+RUN apt-get update && apt-get install -f -y ./viennarna_2.6.4-1_amd64.deb || true && rm viennarna_2.6.4-1_amd64.deb
 
 # Powrót do katalogu roboczego
 WORKDIR /usr/src/backend
 
-# Kopiujemy requirements.txt do kontenera
+# Kopiuje requirements.txt do kontenera
 COPY requirements.txt .
 
-# Instalujemy zależności z pliku requirements.txt
+# Instalacja zależności z pliku requirements.txt
 RUN pip install -r requirements.txt
 
-# Kopiujemy resztę kodu źródłowego
+# Kopiuje reszte kodu źródłowego
 COPY . .
 
-# Zmieniamy uprawnienia dla plików w pipeline
+# Zmienia uprawnienia dla plików w pipeline
 RUN chmod +x pipeline/*
-
-# Dodajemy ViennaRNA do PATH
-ENV PATH="/usr/local/bin:$PATH"
 
 # Otwieramy port 8080
 EXPOSE 8080

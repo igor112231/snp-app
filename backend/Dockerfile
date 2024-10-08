@@ -1,6 +1,13 @@
-FROM python:3.9 AS backend
+FROM python AS backend
 
-# Instalacja narzędzi systemowych i zależności
+WORKDIR /usr/src/backend
+
+
+COPY . .
+
+WORKDIR /usr/src/backend/pipeline
+
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
@@ -11,29 +18,27 @@ RUN apt-get update && apt-get install -y \
     pdf2svg \
     npm \
     liblapack-dev \
+    liblapack3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Kopiuje i instaluje ViennaRNA z pliku .deb
-COPY viennarna_2.6.4-1_amd64.deb ./
-RUN apt-get update && apt-get install -f -y ./viennarna_2.6.4-1_amd64.deb || true && rm viennarna_2.6.4-1_amd64.deb
+# --force depends
+RUN apt-get update && apt-get install -y \
+    && dpkg -i ./python3-rna_2.6.4-1_amd64.deb && \
+    dpkg -i ./viennarna-dev_2.6.4-1_amd64.deb && \
+    dpkg -i ./viennarna_2.6.4-1_amd64.deb || true && \
+    apt-get install -f -y && \
+    rm -rf /var/lib/apt/lists/*
 
-# Powrót do katalogu roboczego
+
 WORKDIR /usr/src/backend
 
-# Kopiuje requirements.txt do kontenera
-COPY requirements.txt .
 
-# Instalacja zależności z pliku requirements.txt
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Kopiuje reszte kodu źródłowego
-COPY . .
 
-# Zmienia uprawnienia dla plików w pipeline
-RUN chmod +x pipeline/*
+RUN chmod -R 777 pipeline && ls -ld pipeline
 
-# Otwieramy port 8080
 EXPOSE 8080
 
-# Komenda uruchamiająca aplikację
+
 CMD ["python", "app.py"]

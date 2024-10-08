@@ -7,6 +7,14 @@ docker-compose up --build
 
 ```
 
+## Włączenie aplikacji z zapisywaiem logów
+
+```
+docker-compose up --build 2>&1 | tee build_log.txt
+
+```
+
+
 ## Baza danych
 
 ```

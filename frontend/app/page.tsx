@@ -1,3 +1,4 @@
+//Ustalić język komentarzy
 "use client";
 
 import { useState, useEffect } from "react";

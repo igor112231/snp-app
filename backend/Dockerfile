@@ -6,7 +6,7 @@ COPY . .
 
 WORKDIR /usr/src/backend/pipeline
 
-# Zainstaluj wszystkie niezbędne zależności
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     pdf2svg \
     npm \
     liblapack-dev \
+    liblapacke-dev \
     liblapack3 \
     libgsl-dev \
     libmpfr-dev \
@@ -24,14 +25,12 @@ RUN apt-get update && apt-get install -y \
 
 
 
-RUN dpkg --force-depends -i python3-rna_2.6.4-1_amd64.deb || apt-get install -f -y && \
-    dpkg --force-depends -i viennarna-dev_2.6.4-1_amd64.deb || apt-get install -f -y && \
-    dpkg --force-depends -i viennarna_2.6.4-1_amd64.deb || apt-get install -f -y
+RUN dpkg -i viennarna_2.7.0-1_amd64.deb || apt-get install -f -y
 
 
 WORKDIR /usr/src/backend
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 RUN chmod -R 777 pipeline && ls -ld pipeline
 

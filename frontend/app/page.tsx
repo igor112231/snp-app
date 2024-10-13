@@ -1,9 +1,15 @@
-//Ustalić język komentarzy
 "use client";
 
 import { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 
+const socket = io("http://localhost:8080", {
+    transports: ['websocket'], // Ensure it's using WebSocket
+    withCredentials: true, // Allow cookies for cross-origin requests
+    extraHeaders: {
+        "Access-Control-Allow-Origin": "http://localhost:3000", // Allow specific origin
+    },
+});
 
 const HomePage = () => {
     const [mutantSequence, setMutantSequence] = useState("");
@@ -13,35 +19,36 @@ const HomePage = () => {
     const [wsError, setWsError] = useState("");
 
     useEffect(() => {
-        
-        const socket = io("http://localhost:8080", {
-            transports: ['websocket'] // Wymuszenie WebSocket
-        });
-
         socket.on("connect", () => {
-            console.log("WebSocket is connected");
+            console.log("WebSocket connected");
         });
 
-        socket.on("message", (data) => {
-            console.log("Message from server: ", data);
+        socket.on("analysis_started", () => {
+            console.log("Analysis started");
+            setMessage("Analysis started"); // Set message when analysis starts
         });
 
-        socket.on("error", (error) => {
-            console.error("WebSocket error: ", error);
-            setWsError("WebSocket connection error");
+        socket.on("analysis_completed", (data) => {
+            console.log("Analysis completed: ", data);
+            setMessage(`RNApdist result: ${data.rnapdist_result}`);
+        });
+
+        socket.on("analysis_failed", (data) => {
+            console.error("Analysis failed: ", data.error);
+            setError(`Error: ${data.error}`);
         });
 
         socket.on("disconnect", () => {
             console.log("WebSocket connection closed");
         });
 
-        
+        // Clean up the socket connection when the component unmounts
         return () => {
             socket.disconnect();
         };
     }, []);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
         setMessage("");
@@ -53,29 +60,8 @@ const HomePage = () => {
             wildSequence,
         };
 
-        // Wysyłanie zapytania do backendu
-        try {
-            const response = await fetch("http://localhost:8080/api/analyze", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(data),
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to start analysis");
-            }
-
-            const responseData = await response.json();
-            setMessage(`${responseData.result}`);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("An unknown error occurred");
-            }
-        }
+        // Use the existing socket connection to send data
+        socket.emit("analyze", data);
     };
 
     return (

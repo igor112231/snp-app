@@ -1,6 +1,6 @@
-#! /bin/bash
+#!/bin/bash
 
-# Sprawdź, czy podano argumenty
+
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <path_to_id_directory>"
     exit 1
@@ -8,7 +8,7 @@ fi
 
 ID_DIR="$1"
 
-# Sprawdź, czy pliki istnieją
+
 WT_FILE="$ID_DIR/wt.txt"
 MUT_FILE="$ID_DIR/mut.txt"
 
@@ -22,11 +22,14 @@ if [[ ! -f "$MUT_FILE" ]]; then
     exit 1
 fi
 
-# Uruchomienie RNApdist
-cat "$WT_FILE" "$MUT_FILE" | RNApdist > "$ID_DIR/RNApdist-result.txt"
 
-# Zmiana uprawnień do pliku z wynikami
-chmod 666 "$ID_DIR/RNApdist-result.txt"
+cd "$ID_DIR" || exit 1
+
+
+cat "$WT_FILE" "$MUT_FILE" | RNApdist > "RNApdist-result.txt"
+
+
+chmod 666 "RNApdist-result.txt"
 
 if [[ $? -ne 0 ]]; then
     echo "Error: RNApdist failed."

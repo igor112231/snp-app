@@ -1,6 +1,10 @@
 from flask import Flask, jsonify, request
 import mysql.connector
 import os
+import threading
+import time
+import subprocess
+import tempfile
 
 app = Flask(__name__)
 
@@ -21,6 +25,48 @@ def connect_to_database():
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         return None
+
+
+def rna_pdist_run(sequence1, sequence2):
+    # Utworzenie pliku tymczasowego do zapisu sekwencji
+    with tempfile.NamedTemporaryFile(delete=False, mode='w') as temp_file:
+        temp_file.write(f"{sequence1}\n{sequence2}")
+        temp_filename = temp_file.name
+
+    # Uruchomienie polecenia RNApdist na pliku tymczasowym
+    command = f"RNApdist < {temp_filename}"
+
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+    # Sprawdzanie, czy polecenie zakończyło się pomyślnie
+    if result.returncode == 0:
+        # Zapisz wynik do zmiennej
+        output = result.stdout.strip()  # Usuwa dodatkowe białe znaki
+        print("Wynik RNApdist:")
+        print(output)
+    else:
+        print("Wystąpił błąd podczas uruchamiania RNApdist:")
+        print(result.stderr)
+
+    # Usunięcie pliku tymczasowego
+    os.remove(temp_filename)
+
+#http://127.0.0.1:8080/rna-pdist?sequence1=ACGUACGU&sequence2=UGCAUGCA
+@app.route('/rna-pdist', methods=['GET'])
+def rna_pdist():
+    # Pobierz sekwencje z parametrów zapytania
+    sequence1 = request.args.get('sequence1')
+    sequence2 = request.args.get('sequence2')
+
+    if not sequence1 or not sequence2:
+        return jsonify({"error": "Brak sekwencji RNA w żądaniu"}), 400
+
+    # Uruchomienie funkcji w osobnym wątku
+    thread = threading.Thread(target=rna_pdist_run, args=(sequence1, sequence2))
+    thread.start()
+    
+    return jsonify({"message": "Zadanie rozpoczete!"}), 202
+
 
 # Test polaczenia
 @app.route('/test-db')

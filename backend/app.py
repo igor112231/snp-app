@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import logging
@@ -6,94 +6,219 @@ import subprocess
 import threading
 import os
 import uuid
-import stat
+import shutil
+import eventlet
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
+socketio = SocketIO(app, cors_allowed_origins="*", path="/socket.io")
 
-# Allow CORS from the frontend origin
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
-socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")  # Allow socket connections from frontend
 
-# Logging configuration
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Directory where app.py is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def run_pipeline(mutant_sequence, wild_sequence):
-    # Generate a unique ID
-    analysis_id = str(uuid.uuid4())
+def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
 
-    # Save sequences to files
     os.makedirs(pipeline_dir, exist_ok=True)
-
     wt_file_path = os.path.join(pipeline_dir, 'wt.txt')
     mut_file_path = os.path.join(pipeline_dir, 'mut.txt')
 
     with open(wt_file_path, 'w') as wt_file:
-        wt_file.write(wild_sequence)
+        wt_file.write(wild_sequence + '\n')
     with open(mut_file_path, 'w') as mut_file:
-        mut_file.write(mutant_sequence)
+        mut_file.write(mutant_sequence + '\n')
 
-    # Set file permissions
-    for file_path in [wt_file_path, mut_file_path]:
-        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
-
-    logger.debug(f"WT file path: {wt_file_path}")
-    logger.debug(f"Mut file path: {mut_file_path}")
-    logger.debug(f"Files in PIPELINE_DIR: {os.listdir(pipeline_dir)}")
-    
     try:
-        # Run analyses
-        subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist'), pipeline_dir], check=True)
-        
-        # Read RNApdist result
-        with open(os.path.join(pipeline_dir, 'RNApdist-result.txt'), 'r') as f:
-            rnapdist_result = f.read().strip()
-        logger.debug(f"RNApdist result: {rnapdist_result}")
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "In progress"}, broadcast=True)
 
-        # Run the remaining analyses
-        subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '02-RNAfold'), pipeline_dir], check=True)
-        subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance'), pipeline_dir], check=True)
-        subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot'), pipeline_dir], check=True)
+        try:
+            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist')], cwd=pipeline_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Step 01-RNApdist failed: {e}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '01-RNApdist', 'error': str(e)}, broadcast=True)
+            return
 
-        # Send the result via WebSocket
-        socketio.emit('analysis_completed', {
-            'rnapdist_result': rnapdist_result,
-            'analysisId': analysis_id
-        })
+        try:
+            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '02-RNAfold')], cwd=pipeline_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Step 02-RNAfold failed: {e}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '02-RNAfold', 'error': str(e)}, broadcast=True)
+            return
 
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Pipeline failed: {e}")
-        socketio.emit('analysis_failed', {'error': str(e), 'analysisId': analysis_id})
+        try:
+            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance')], cwd=pipeline_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Step 03-RNAdistance failed: {e}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '03-RNAdistance', 'error': str(e)}, broadcast=True)
+            return
 
-# Endpoint to start analysis
-@socketio.on('analyze')
-def analyze(data):
-    logger.debug("Received request for analysis")
-    
+        try:
+            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Step 04-RNAplot failed: {e}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True)
+            return
+
+
+        try:
+            logger.debug(f"HITtree")
+            subprocess.run(['python3', os.path.join(BASE_DIR, 'pipeline', 'tree.py'), pipeline_dir],check=True)
+            logger.debug(f"After HITtree")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Step HIT tree failed: {e}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': 'HITtree', 'error': str(e)}, broadcast=True)
+            return
+
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+    except Exception as e:
+        logger.error(f"Unexpected error in pipeline: {e}")
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'error': 'unexpected error', 'details': str(e)}, broadcast=True)
+
+
+@app.route('/api/analyze/pair', methods=['POST'])
+def analyze_pair():
+    data = request.get_json()
     if not data:
-        logger.error("No data provided")
-        emit('analysis_failed', {'error': 'No data provided'})
-        return
+        return jsonify({'error': 'No data provided'}), 400
 
     mutant_sequence = data.get('mutantSequence')
     wild_sequence = data.get('wildSequence')
     logger.debug(f"Mutant sequence: {mutant_sequence}, Wild sequence: {wild_sequence}")
+    
+    if not wild_sequence or not mutant_sequence:
+        return jsonify({'error': 'Invalid input data'}), 400
 
-    socketio.emit('analysis_started')
-    # Analyze in the background
-    threading.Thread(target=run_pipeline, args=(mutant_sequence, wild_sequence)).start()
+    analysis_id = str(uuid.uuid4())
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True)
+    threading.Thread(target=run_pipeline, args=(mutant_sequence, wild_sequence, analysis_id)).start()
+    print("response?")
+    return jsonify({"analysis_id": analysis_id}), 200
 
-    # Response for the client
-    socketio.emit('analysis_completed', {'result': 'Analysis started', 'analysisId': str(uuid.uuid4())})
+@app.route('/api/results/pair/<analysis_id>', methods=['GET'])
+def get_combined_text(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+
+    if not os.path.exists(pipeline_dir):
+        return jsonify({'error': 'Analysis not found'}), 404
+
+    filenames = [
+        'RNApdist-result.txt',
+        'RNAdistance-result.txt',
+        'RNAdistance-backtrack.txt'
+    ]
+
+    combined_content = ""
+    for filename in filenames:
+        file_path = os.path.join(pipeline_dir, filename)
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                combined_content += f"=== {filename} ===\n{file.read()}\n\n"
+        else:
+            combined_content += f"=== {filename} ===\nFile not found\n\n"
+
+    return jsonify({'content': combined_content})
+
+@app.route('/api/results/pair/<analysis_id>/rna-plot-mut', methods=['GET'])
+def get_svg_mut(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    svg_path = os.path.join(pipeline_dir, 'mut-dotbracket.svg')
+
+    if not os.path.exists(svg_path):
+        return jsonify({'error': 'SVG file not found'}), 404
+
+    return send_file(svg_path, mimetype='image/svg+xml')
+
+@app.route('/api/results/pair/<analysis_id>/rna-plot-wt', methods=['GET'])
+def get_svg_wt(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    svg_path = os.path.join(pipeline_dir, 'wt-dotbracket.svg')
+
+    if not os.path.exists(svg_path):
+        return jsonify({'error': 'SVG file not found'}), 404
+
+    return send_file(svg_path, mimetype='image/svg+xml')
+
+
+@app.route('/api/analyze/single', methods=['POST'])
+def analyze_single():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    
+    wild_sequence = data.get('wildSequence')
+    logger.debug(f"Wild sequence: {wild_sequence}")
+    
+    if not wild_sequence:
+        return jsonify({'error': 'Invalid input data'}), 400
+
+    analysis_id = str(uuid.uuid4())
+
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+
+    os.makedirs(pipeline_dir, exist_ok=True)
+    wt_file_path = os.path.join(pipeline_dir, 'wt.txt')
+
+    with open(wt_file_path, 'w') as wt_file:
+        wt_file.write(wild_sequence + '\n')
+
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True)
+    try:
+        result = subprocess.run(
+            ['python3', os.path.join(BASE_DIR, 'pipeline', 'script.py'), pipeline_dir],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        output = result.stdout
+        logger.debug(f"Script output: {output}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error while running script: {e.stderr}")
+        return jsonify({'error': 'Analysis failed'}), 500
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+    
+    
+    logger.debug(f"Response ?: {analysis_id}")
+    return jsonify({"analysis_id": analysis_id}), 200
+
+@app.route('/api/results/single/<analysis_id>', methods=['GET'])
+def get_csv_preview(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    csv_file_path = os.path.join(pipeline_dir, 'mutation_results.csv')
+    logger.debug(f"Expected CSV file path: {csv_file_path}")
+    
+    if not os.path.exists(csv_file_path):
+        logger.debug("CSV not found")
+        return jsonify({'error': 'File not found'}), 404
+
+    try:
+        with open(csv_file_path, 'r') as file:
+            lines = file.readlines()
+            first_five_lines = ''.join(lines[:5])  
+        logger.debug(f"Preview of first five lines: {first_five_lines}")
+        return jsonify({'content': first_five_lines})
+    except Exception as e:
+        return jsonify({'error': f'Error reading the file: {str(e)}'}), 500
+
+@app.route('/api/results/<analysis_id>/zip-download', methods=['GET'])
+def download_results_zip(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    zip_path = os.path.join(pipeline_dir, f"{analysis_id}.zip")
+
+    if not os.path.exists(pipeline_dir):
+        return jsonify({'error': 'Analysis not found'}), 404
+
+    shutil.make_archive(zip_path.replace(".zip", ""), 'zip', pipeline_dir)
+    return send_file(zip_path, as_attachment=True)
 
 @socketio.on('connect')
 def handle_connect():
-    logger.debug("Client connected")
+    logger.debug("Backend sent connect")
     emit('response', {'data': 'Connected to WebSocket'})
 
 if __name__ == '__main__':
+    eventlet.monkey_patch()
     socketio.run(app, host='0.0.0.0', port=8080)

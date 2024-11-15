@@ -1,39 +1,4 @@
-#!/bin/bash
+#! /bin/bash
 
-
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <path_to_id_directory>"
-    exit 1
-fi
-
-ID_DIR="$1"
-
-
-WT_FILE="$ID_DIR/wt.txt"
-MUT_FILE="$ID_DIR/mut.txt"
-
-if [[ ! -f "$WT_FILE" ]]; then
-    echo "Error: wt.txt not found in $ID_DIR."
-    exit 1
-fi
-
-if [[ ! -f "$MUT_FILE" ]]; then
-    echo "Error: mut.txt not found in $ID_DIR."
-    exit 1
-fi
-
-
-cd "$ID_DIR" || exit 1
-
-
-cat "$WT_FILE" "$MUT_FILE" | RNApdist > "RNApdist-result.txt"
-
-
-chmod 666 "RNApdist-result.txt"
-
-if [[ $? -ne 0 ]]; then
-    echo "Error: RNApdist failed."
-    exit 1
-fi
-
-echo "RNApdist completed successfully."
+set -x 
+cat wt.txt mut.txt | RNApdist > "RNApdist-result.txt"

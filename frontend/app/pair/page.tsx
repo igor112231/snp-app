@@ -17,6 +17,8 @@ const HomePage = () => {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [svgUrlMut, setSvgUrlMut] = useState<string | null>(null);
   const [svgUrlWt, setSvgUrlWt] = useState<string | null>(null);
+  const [svgTreeUrlMut, setTreeSvgUrlMut] = useState<string | null>(null);
+  const [svgTreeUrlWt, setTreeSvgUrlWt] = useState<string | null>(null);
   const [combinedText, setCombinedText] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,8 @@ const HomePage = () => {
       fetchResultsZIP(analysisId);
       fetchSvgUrlMut(analysisId);
       fetchSvgUrlWt(analysisId);
+      fetchTreeSvgUrlMut(analysisId);
+      fetchTreeSvgUrlWt(analysisId);
     }
   }, [message, analysisId]);
 
@@ -124,6 +128,30 @@ const HomePage = () => {
 
       const svgUrlWt = response.url; 
       setSvgUrlWt(svgUrlWt);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred while fetching SVG");
+    }
+  };
+
+  const fetchTreeSvgUrlMut = async (analysisId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/results/pair/${analysisId}/hit-tree_mut`);
+      if (!response.ok) throw new Error("Failed to fetch SVG");
+
+      const svgTreeUrlMut = response.url; 
+      setTreeSvgUrlMut(svgTreeUrlMut);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred while fetching SVG");
+    }
+  };
+
+  const fetchTreeSvgUrlWt = async (analysisId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8080/api/results/pair/${analysisId}/hit-tree_wt`);
+      if (!response.ok) throw new Error("Failed to fetch SVG");
+
+      const svgTreeUrlWt = response.url; 
+      setTreeSvgUrlWt(svgTreeUrlWt);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred while fetching SVG");
     }
@@ -178,6 +206,23 @@ const HomePage = () => {
         </div>
       )}
 
+      {svgTreeUrlMut && (
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <h3 style={{ color: "#333" }}>TREE MUT SVG:</h3>
+          <object data={svgTreeUrlMut} type="image/svg+xml" width="600" height="400">
+            
+          </object>
+        </div>
+      )}
+
+      {svgTreeUrlWt && (
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <h3 style={{ color: "#333" }}>TREE WT SVG:</h3>
+          <object data={svgTreeUrlWt} type="image/svg+xml" width="600" height="400">
+            
+          </object>
+        </div>
+      )}
       
       {svgUrlMut && (
         <div style={{ marginTop: "20px", textAlign: "center" }}>
@@ -196,6 +241,9 @@ const HomePage = () => {
           </object>
         </div>
       )}
+
+
+
     </div>
   );
 };

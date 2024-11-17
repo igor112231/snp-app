@@ -55,12 +55,12 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
             socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '03-RNAdistance', 'error': str(e)}, broadcast=True)
             return
 
-        try:
-            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Step 04-RNAplot failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True)
-            return
+        #try:
+        #    subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
+        #except subprocess.CalledProcessError as e:
+        #    logger.error(f"Step 04-RNAplot failed: {e}")
+        #    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True)
+        #    return
 
 
         try:
@@ -73,9 +73,16 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
             return
 
         socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+
+
+    #Pewnie gdzieś tutaj zapis do bazy danych, na razie nie ma danych z rnaplot - chociaż do nich i tak chyba zapisujemy tylko url endpointu
+
     except Exception as e:
         logger.error(f"Unexpected error in pipeline: {e}")
         socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'error': 'unexpected error', 'details': str(e)}, broadcast=True)
+
+
+    
 
 
 @app.route('/api/analyze/pair', methods=['POST'])
@@ -103,6 +110,9 @@ def get_combined_text(analysis_id):
 
     if not os.path.exists(pipeline_dir):
         return jsonify({'error': 'Analysis not found'}), 404
+
+
+    #tutaj odczyt odpowiednich danych z bazy danych
 
     filenames = [
         'RNApdist-result.txt',
@@ -140,6 +150,27 @@ def get_svg_wt(analysis_id):
         return jsonify({'error': 'SVG file not found'}), 404
 
     return send_file(svg_path, mimetype='image/svg+xml')
+
+@app.route('/api/results/pair/<analysis_id>/hit-tree_wt', methods=['GET'])
+def get_svg_hit_tree_wt(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    svg_path = os.path.join(pipeline_dir, 'tree_wt.svg')
+
+    if not os.path.exists(svg_path):
+        return jsonify({'error': 'SVG file not found'}), 404
+
+    return send_file(svg_path, mimetype='image/svg+xml')
+
+@app.route('/api/results/pair/<analysis_id>/hit-tree_mut', methods=['GET'])
+def get_svg_hit_tree_mut(analysis_id):
+    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
+    svg_path = os.path.join(pipeline_dir, 'tree_mut.svg')
+
+    if not os.path.exists(svg_path):
+        return jsonify({'error': 'SVG file not found'}), 404
+
+    return send_file(svg_path, mimetype='image/svg+xml')
+
 
 
 @app.route('/api/analyze/single', methods=['POST'])
@@ -179,6 +210,7 @@ def analyze_single():
         logger.error(f"Error while running script: {e.stderr}")
         return jsonify({'error': 'Analysis failed'}), 500
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+
     
     
     logger.debug(f"Response ?: {analysis_id}")
@@ -200,6 +232,9 @@ def get_csv_preview(analysis_id):
             first_five_lines = ''.join(lines[:5])  
         logger.debug(f"Preview of first five lines: {first_five_lines}")
         return jsonify({'content': first_five_lines})
+
+    #Pewnie tutaj zapis do bazy danych, powyciągać 10 pierwszych danych z .csv
+
     except Exception as e:
         return jsonify({'error': f'Error reading the file: {str(e)}'}), 500
 

@@ -18,7 +18,7 @@ const AnalysisPage = () => {
   // Pobieranie wyników
   const fetchResults = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/results/pair/${analysisId}');
+      const response = await fetch(`http://localhost:8080/api/results/pair/${analysisId}`);
       if (!response.ok) throw new Error("Failed to fetch combined text");
       const data = await response.json();
       setCombinedText(data.content);
@@ -65,12 +65,12 @@ const AnalysisPage = () => {
 
   // Ustawianie WebSocket i reagowanie na status
   useEffect(() => {
-    const socket = io("http://localhost:8080/status-pair", {
+    const socket = io(`http://localhost:8080/${analysisId}`, {
       transports: ["websocket"],
       autoConnect: true,
     });
 
-    socket.on('connect', () => {
+    socket.on(`connect`, () => {
         console.log("WebSocket connected");
     });
 

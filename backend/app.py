@@ -32,35 +32,34 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
         mut_file.write(mutant_sequence + '\n')
 
     try:
-        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "In progress"}, broadcast=True)
-
+        
         try:
             subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist')], cwd=pipeline_dir, check=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"Step 01-RNApdist failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '01-RNApdist', 'error': str(e)}, broadcast=True)
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '01-RNApdist', 'error': str(e)}, broadcast=True, namespace='/status-pair')
             return
 
         try:
             subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '02-RNAfold')], cwd=pipeline_dir, check=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"Step 02-RNAfold failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '02-RNAfold', 'error': str(e)}, broadcast=True)
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '02-RNAfold', 'error': str(e)}, broadcast=True, namespace='/status-pair')
             return
 
         try:
             subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance')], cwd=pipeline_dir, check=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"Step 03-RNAdistance failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '03-RNAdistance', 'error': str(e)}, broadcast=True)
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '03-RNAdistance', 'error': str(e)}, broadcast=True, namespace='/status-pair')
             return
 
-        #try:
-        #    subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
-        #except subprocess.CalledProcessError as e:
-        #    logger.error(f"Step 04-RNAplot failed: {e}")
-        #    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True)
-        #    return
+        try:
+           subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
+        except subprocess.CalledProcessError as e:
+           logger.error(f"Step 04-RNAplot failed: {e}")
+           socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True, namespace='/status-pair')
+           return
 
 
         try:
@@ -72,14 +71,14 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
             socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': 'HITtree', 'error': str(e)}, broadcast=True)
             return
 
-        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace='/status-pair')
 
 
     #Pewnie gdzieś tutaj zapis do bazy danych, na razie nie ma danych z rnaplot - chociaż do nich i tak chyba zapisujemy tylko url endpointu
 
     except Exception as e:
         logger.error(f"Unexpected error in pipeline: {e}")
-        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'error': 'unexpected error', 'details': str(e)}, broadcast=True)
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'error': 'unexpected error', 'details': str(e)}, broadcast=True, namespace='/status-pair')
 
 
     
@@ -99,7 +98,7 @@ def analyze_pair():
         return jsonify({'error': 'Invalid input data'}), 400
 
     analysis_id = str(uuid.uuid4())
-    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True)
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace='/status-pair')
     threading.Thread(target=run_pipeline, args=(mutant_sequence, wild_sequence, analysis_id)).start()
     print("response?")
     return jsonify({"analysis_id": analysis_id}), 200

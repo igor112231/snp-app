@@ -5,9 +5,6 @@ import Image from "next/image";
 import React, { useState } from 'react';
 import { useRouter } from "next/navigation";
 
-
-
-
 const HomePage = () => {
   const [wildSequence, setWildSequence] = useState("");
   //const [message, setMessage] = useState("");
@@ -55,11 +52,8 @@ const HomePage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
+    localStorage.setItem("wildSequence", wildSequence);
     try {
-      
-      localStorage.setItem("wildSequence", wildSequence);
-
       const response = await fetch("http://localhost:8080/api/analyze/single", {
         method: "POST",
         headers: {
@@ -67,16 +61,18 @@ const HomePage = () => {
         },
         body: JSON.stringify({ wildSequence }),
       });
-
+  
       if (!response.ok) throw new Error("Failed to start analysis");
-
+  
       const responseData = await response.json();
-      router.push(`/single/${responseData.analysis_id}`);
       
+      
+      router.push(`/single/${responseData.analysis_id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     }
   };
+  
 
   const navLinkStyle = {
     textDecoration: "none",

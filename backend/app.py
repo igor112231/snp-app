@@ -53,12 +53,12 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
         ("HITtree", ['python3', os.path.join(BASE_DIR, 'pipeline', 'tree.py'), pipeline_dir])
     ]
 
-    # Wykonywanie kolejnych kroków w pipeline
+    
     for step_name, command in steps:
         if not run_step(step_name, command, pipeline_dir, analysis_id):
-            return  # Zatrzymujemy dalsze wykonywanie w przypadku błędu
+            return 
 
-    # Po zakończeniu wszystkich kroków, informujemy o zakończeniu analizy
+    
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
 
 @app.route('/api/analyze/pair', methods=['POST'])
@@ -157,7 +157,6 @@ def analyze_single():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
-    
     wild_sequence = data.get('wildSequence')
     logger.debug(f"Wild sequence: {wild_sequence}")
     
@@ -165,29 +164,38 @@ def analyze_single():
         return jsonify({'error': 'Invalid input data'}), 400
 
     analysis_id = str(uuid.uuid4())
-
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-
     os.makedirs(pipeline_dir, exist_ok=True)
-    wt_file_path = os.path.join(pipeline_dir, 'wt.txt')
 
+    wt_file_path = os.path.join(pipeline_dir, 'wt.txt')
     with open(wt_file_path, 'w') as wt_file:
         wt_file.write(wild_sequence + '\n')
 
+    # Emit start status
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
-    try:
-        result = subprocess.run(
-            ['python3', os.path.join(BASE_DIR, 'pipeline', 'script.py'), pipeline_dir],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        output = result.stdout
-        logger.debug(f"Script output: {output}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error while running script: {e.stderr}")
-        return jsonify({'error': 'Analysis failed'}), 500
-    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
+
+    # Define the analysis function
+    def run_analysis():
+        try:
+            result = subprocess.run(
+                ['python3', os.path.join(BASE_DIR, 'pipeline', 'script.py'), pipeline_dir],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout
+            logger.debug(f"Script output: {output}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error while running script: {e.stderr}")
+            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis failed"}, broadcast=True, namespace=f'/{analysis_id}')
+
+    
+    analysis_thread = threading.Thread(target=run_analysis, daemon=True)
+    analysis_thread.start()
+
+    
+    return jsonify({"analysis_id": analysis_id}), 200
 
     
     

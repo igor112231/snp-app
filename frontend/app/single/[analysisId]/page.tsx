@@ -21,7 +21,6 @@ const HomePage = () => {
   const wildSequence = localStorage.getItem('wildSequence');
   useEffect(() => {
     const socket = io(`http://localhost:8080/${analysisId}`, {
-      path: "/socket.io",
       transports: ["websocket"],
       autoConnect: true,
     });
@@ -39,9 +38,9 @@ const HomePage = () => {
     });
 
     return () => {
-      socket.off("task_status");
+      
       socket.disconnect();
-      console.log("WebSocket disconnected");
+      
     };
   }, [analysisId]);
 
@@ -56,15 +55,18 @@ const HomePage = () => {
 
   const fetchResults = useCallback(async () => {
     try {
+      console.log("Fetching results...");
       const response = await fetch(`http://localhost:8080/api/results/single/${analysisId}`);
       if (!response.ok) throw new Error("Failed to fetch combined text");
-
+  
       const data = await response.json();
+      console.log("Fetched results:", data);
       setCombinedText(data.content);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred while fetching combined text");
     }
-  }, []);
+  }, [analysisId]);
+  
 
   const fetchResultsZIP = useCallback(async () => {
     try {
@@ -77,7 +79,7 @@ const HomePage = () => {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred while fetching results");
     }
-  }, []);
+  }, [analysisId]);
 
   const navLinkStyle = {
     textDecoration: "none",

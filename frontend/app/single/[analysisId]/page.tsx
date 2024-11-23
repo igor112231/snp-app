@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from "next/navigation";
-import io from 'socket.io-client';
+import React, { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
+import io from "socket.io-client";
 
 interface TaskStatus {
   analysis_id: string;
@@ -10,16 +10,15 @@ interface TaskStatus {
 }
 
 const HomePage = () => {
+  const { analysisId } = useParams();
   const [wildSequence, setWildSequence] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [combinedText, setCombinedText] = useState<string | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    const socket = io("http://localhost:8080", {
+    const socket = io(`http://localhost:8080/${analysisId}`, {
       path: "/socket.io",
       transports: ["websocket"],
       autoConnect: true,
@@ -34,7 +33,6 @@ const HomePage = () => {
     });
 
     socket.on("task_status", (data: TaskStatus) => {
-      setAnalysisId(data.analysis_id);
       setMessage(data.status);
     });
 
@@ -50,33 +48,16 @@ const HomePage = () => {
     setMessage("");
     setError("");
 
-    try {
-      const response = await fetch("http://localhost:8080/api/analyze/single", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ wildSequence }),
-      });
-
-      if (!response.ok) throw new Error("Failed to start analysis");
-
-      const responseData = await response.json();
-      router.push(`/single/${responseData.analysis_id}`);
-      setAnalysisId(responseData.analysis_id);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
-    }
   };
 
   useEffect(() => {
-    if (message === "Analysis completed" && analysisId) {
-      fetchResults(analysisId);
-      fetchResultsZIP(analysisId);
+    if (message === "Analysis completed") {
+      fetchResults();
+      fetchResultsZIP();
     }
   }, [message, analysisId]);
 
-  const fetchResults = async (analysisId: string) => {
+  const fetchResults = useCallback(async () => {
     try {
       const response = await fetch(`http://localhost:8080/api/results/single/${analysisId}`);
       if (!response.ok) throw new Error("Failed to fetch combined text");
@@ -86,9 +67,9 @@ const HomePage = () => {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred while fetching combined text");
     }
-  };
+  },[]);
 
-  const fetchResultsZIP = async (analysisId: string) => {
+  const fetchResultsZIP = useCallback(async () => {
     try {
       const response = await fetch(`http://localhost:8080/api/results/${analysisId}/zip-download`);
       if (!response.ok) throw new Error("Failed to fetch results");
@@ -99,7 +80,7 @@ const HomePage = () => {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred while fetching results");
     }
-  };
+  },[]);
 
   return (
     <div style={{ width: "100%", maxWidth: "600px", margin: "0 auto", padding: "20px", backgroundColor: "#f0f0f0", border: "1px solid #ccc", borderRadius: "5px", fontFamily: "Tahoma, sans-serif" }}>

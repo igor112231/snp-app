@@ -19,10 +19,21 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def run_step(step_name, command, cwd, analysis_id):
+    try:
+        subprocess.run(command, cwd=cwd, check=True)
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'Analysis started', 'step': step_name}, broadcast=True, namespace=f'/{analysis_id}')
+    except subprocess.CalledProcessError as e:
+        logger.error(f"{step_name} failed: {e}")
+        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': step_name, 'error': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
+        return False
+    return True
+
 def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-
     os.makedirs(pipeline_dir, exist_ok=True)
+    
     wt_file_path = os.path.join(pipeline_dir, 'wt.txt')
     mut_file_path = os.path.join(pipeline_dir, 'mut.txt')
 
@@ -31,58 +42,24 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
     with open(mut_file_path, 'w') as mut_file:
         mut_file.write(mutant_sequence + '\n')
 
-    try:
-        
-        try:
-            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist')], cwd=pipeline_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Step 01-RNApdist failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '01-RNApdist', 'error': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
-            return
+    # Emitowanie statusu, że analiza się rozpoczęła
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
 
-        try:
-            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '02-RNAfold')], cwd=pipeline_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Step 02-RNAfold failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '02-RNAfold', 'error': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
-            return
+    steps = [
+        ("01-RNApdist", ['bash', os.path.join(BASE_DIR, 'pipeline', '01-RNApdist')]),
+        ("02-RNAfold", ['bash', os.path.join(BASE_DIR, 'pipeline', '02-RNAfold')]),
+        ("03-RNAdistance", ['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance')]),
+        ("04-RNAplot", ['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')]),
+        ("HITtree", ['python3', os.path.join(BASE_DIR, 'pipeline', 'tree.py'), pipeline_dir])
+    ]
 
-        try:
-            subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance')], cwd=pipeline_dir, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Step 03-RNAdistance failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '03-RNAdistance', 'error': str(e)}, broadcast=True, namespace= f'/{analysis_id}')
-            return
+    # Wykonywanie kolejnych kroków w pipeline
+    for step_name, command in steps:
+        if not run_step(step_name, command, pipeline_dir, analysis_id):
+            return  # Zatrzymujemy dalsze wykonywanie w przypadku błędu
 
-        try:
-           subprocess.run(['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')], cwd=pipeline_dir, check=True)
-        except subprocess.CalledProcessError as e:
-           logger.error(f"Step 04-RNAplot failed: {e}")
-           socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': '04-RNAplot', 'error': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
-           return
-
-
-        try:
-            logger.debug(f"HITtree")
-            subprocess.run(['python3', os.path.join(BASE_DIR, 'pipeline', 'tree.py'), pipeline_dir],check=True)
-            logger.debug(f"After HITtree")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Step HIT tree failed: {e}")
-            socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': 'HITtree', 'error': str(e)}, broadcast=True)
-            return
-
-        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
-
-
-    #Pewnie gdzieś tutaj zapis do bazy danych, na razie nie ma danych z rnaplot - chociaż do nich i tak chyba zapisujemy tylko url endpointu
-
-    except Exception as e:
-        logger.error(f"Unexpected error in pipeline: {e}")
-        socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'error': 'unexpected error', 'details': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
-
-
-    
-
+    # Po zakończeniu wszystkich kroków, informujemy o zakończeniu analizy
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
 
 @app.route('/api/analyze/pair', methods=['POST'])
 def analyze_pair():
@@ -99,9 +76,11 @@ def analyze_pair():
 
     analysis_id = str(uuid.uuid4())
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
+    
     threading.Thread(target=run_pipeline, args=(mutant_sequence, wild_sequence, analysis_id)).start()
-    print("response?")
+    
     return jsonify({"analysis_id": analysis_id}), 200
+
 
 @app.route('/api/results/pair/<analysis_id>', methods=['GET'])
 def get_combined_text(analysis_id):

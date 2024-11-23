@@ -1,56 +1,65 @@
 "use client";
+import Link from "next/link";
+import Image from "next/image";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from "next/navigation";
-import io from 'socket.io-client';
 
-interface TaskStatus {
-  analysis_id: string;
-  status: string;
-}
+
+
 
 const HomePage = () => {
   const [wildSequence, setWildSequence] = useState("");
-  const [message, setMessage] = useState("");
+  //const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [combinedText, setCombinedText] = useState<string | null>(null);
+  const [dbSnpId, setDbSnpId] = useState("");
+  //const [fetchDbSnp, setFetchDbSnp] = useState(false); // Stan przechowujący, czy użytkownik chce pobrać z dbSNP
   const router = useRouter();
 
-  useEffect(() => {
-    const socket = io("http://localhost:8080", {
-      path: "/socket.io",
-      transports: ["websocket"],
-      autoConnect: true,
-    });
 
-    socket.on("connect", () => {
-      console.log("WebSocket connected");
-    });
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setSequence: (value: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    socket.on("connect_error", (err: unknown) => {
-      console.error("WebSocket connection error:", err);
-    });
-
-    socket.on("task_status", (data: TaskStatus) => {
-      setAnalysisId(data.analysis_id);
-      setMessage(data.status);
-    });
-
-    return () => {
-      socket.off("task_status");
-      socket.disconnect();
-      console.log("WebSocket disconnected");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      setSequence(text.trim());
     };
-  }, [analysisId]);
+    reader.onerror = () => setError("Failed to read the file");
+    reader.readAsText(file);
+  };
+
+  
+  const handleDbSnpSearch = async () => {
+    if (!dbSnpId) {
+      setError("Please provide a valid dbSNP ID");
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8080/api/dbsnp/${dbSnpId}`);
+      if (!response.ok) throw new Error("Failed to fetch sequence for dbSNP ID");
+
+      const data = await response.json();
+      setWildSequence(data.sequence);
+      //setFetchDbSnp(true); // Ustawiamy stan, że dbSNP zostało pobrane
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage("");
     setError("");
 
     try {
+      
+      localStorage.setItem("wildSequence", wildSequence);
+
       const response = await fetch("http://localhost:8080/api/analyze/single", {
         method: "POST",
         headers: {
@@ -63,81 +72,175 @@ const HomePage = () => {
 
       const responseData = await response.json();
       router.push(`/single/${responseData.analysis_id}`);
-      setAnalysisId(responseData.analysis_id);
+      
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     }
   };
 
-  useEffect(() => {
-    if (message === "Analysis completed" && analysisId) {
-      fetchResults(analysisId);
-      fetchResultsZIP(analysisId);
-    }
-  }, [message, analysisId]);
-
-  const fetchResults = async (analysisId: string) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/results/single/${analysisId}`);
-      if (!response.ok) throw new Error("Failed to fetch combined text");
-
-      const data = await response.json();
-      setCombinedText(data.content);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred while fetching combined text");
-    }
-  };
-
-  const fetchResultsZIP = async (analysisId: string) => {
-    try {
-      const response = await fetch(`http://localhost:8080/api/results/${analysisId}/zip-download`);
-      if (!response.ok) throw new Error("Failed to fetch results");
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setDownloadUrl(url);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred while fetching results");
-    }
+  const navLinkStyle = {
+    textDecoration: "none",
+    color: "#fff",
+    backgroundColor: "#87CEFA",
+    padding: "8px 15px",
+    borderRadius: "5px",
+    fontSize: "14px",
+    fontWeight: "bold",
   };
 
   return (
-    <div style={{ width: "100%", maxWidth: "600px", margin: "0 auto", padding: "20px", backgroundColor: "#f0f0f0", border: "1px solid #ccc", borderRadius: "5px", fontFamily: "Tahoma, sans-serif" }}>
-      <h1 style={{ textAlign: "center", color: "#0033cc" }}>RNA Sequence Analysis</h1>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: "15px" }}>
-          <label htmlFor="wildSequence" style={{ color: "#555", display: "block", marginBottom: "5px" }}>Wild-Type Sequence:</label>
-          <input
-            type="text"
-            id="wildSequence"
-            value={wildSequence}
-            onChange={(e) => setWildSequence(e.target.value)}
-            required
-            style={{ width: "100%", padding: "10px", border: "1px solid #000", borderRadius: "3px", color: "#333333" }}
-          />
+    <div
+      style={{
+        fontFamily: "Tahoma, sans-serif",
+        backgroundColor: "#e6e2e7",
+        minHeight: "100vh",
+        padding: "20px",
+      }}
+    >
+      {/* Pasek nawigacyjny */}
+      <div
+        style={{
+          backgroundColor: "#87CEFA",
+          padding: "10px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "2px solid #000",
+        }}
+      >
+        <div>
+          <Image src="/favicon.ico" alt="Logo" width={50} height={50} />
         </div>
-        <button type="submit" style={{ width: "100%", padding: "10px", backgroundColor: "#0078d4", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "16px" }}>
-          Analyze
-        </button>
-      </form>
-
-      {message && <p style={{ color: "green", textAlign: "center" }}>{message}</p>}
-      {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}
-
-      {downloadUrl && (
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
-          <a href={downloadUrl} download={`${analysisId}.zip`} style={{ padding: "10px 20px", backgroundColor: "#28a745", color: "white", borderRadius: "5px", textDecoration: "none" }}>
-            Download Results
-          </a>
+        <div style={{ display: "flex", gap: "15px" }}>
+          <Link href="/">
+            <a style={navLinkStyle}>Home</a>
+          </Link>
+          <Link href="/pair">
+            <a style={navLinkStyle}>Scenario 1</a>
+          </Link>
+          <Link href="/single">
+            <a style={navLinkStyle}>Scenario 2</a>
+          </Link>
+          <Link href="/about">
+            <a style={navLinkStyle}>Our team</a>
+          </Link>
         </div>
-      )}
+      </div>
 
-      {combinedText && (
-        <div style={{ marginTop: "20px", backgroundColor: "#f7f7f7", padding: "15px", border: "1px solid #ddd", borderRadius: "5px" }}>
-          <h3 style={{ color: "#333" }}>Analysis Results:</h3>
-          <pre style={{ color: "#333", whiteSpace: "pre-wrap", wordWrap: "break-word" }}>{combinedText}</pre>
-        </div>
-      )}
+      {/* Formularz analizy sekwencji */}
+      <div
+        style={{
+          maxWidth: "600px",
+          margin: "30px auto",
+          padding: "20px",
+          backgroundColor: "#fff",
+          border: "2px solid #000",
+          borderRadius: "15px",
+          boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            color: "#333",
+            marginBottom: "20px",
+          }}
+        >
+          RNA Sequence Analysis
+        </h1>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: "20px" }}>
+            <label
+              htmlFor="wildSequence"
+              style={{
+                color: "#555",
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "16px",
+                fontWeight: "bold",
+              }}
+            >
+              Wild-Type Sequence:
+            </label>
+            <input
+              type="text"
+              id="wildSequence"
+              value={wildSequence}
+              onChange={(e) => setWildSequence(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                fontSize: "14px",
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+            <input
+              type="file"
+              onChange={(e) => handleFileUpload(e, setWildSequence)}
+              style={{ marginTop: "10px" }}
+            />
+            <input
+              type="text"
+              placeholder="Enter dbSNP ID"
+              value={dbSnpId}
+              onChange={(e) => setDbSnpId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                marginTop: "10px",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                fontSize: "14px",
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleDbSnpSearch}
+              style={{
+                width: "100%",
+                padding: "10px",
+                marginTop: "10px",
+                backgroundColor: "#ffc0cb",
+                color: "#000",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold",
+              }}
+            >
+              Fetch Wild-Type from dbSNP
+            </button>
+          </div>
+          <button
+            type="submit"
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "#ffc0cb",
+              color: "#000",
+              border: "2px solid #000",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "bold",
+            }}
+          >
+            Analyze
+          </button>
+        </form>
+
+        {error && (
+          <p style={{ color: "red", textAlign: "center", marginTop: "20px" }}>
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 };

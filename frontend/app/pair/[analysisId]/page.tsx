@@ -20,7 +20,7 @@ const AnalysisPage = () => {
   const mutantSequence = localStorage.getItem('mutantSequence');
   const wildSequence = localStorage.getItem('wildSequence');
 
-  // Pobieranie wyników
+  
   const fetchResults = useCallback(async () => {
     try {
       const response = await fetch(`http://localhost:8080/api/results/pair/${analysisId}`);
@@ -32,7 +32,7 @@ const AnalysisPage = () => {
     }
   }, [analysisId]);
 
-  // Pobieranie ZIP-a
+  
   const fetchDownloadUrl = useCallback(async () => {
     try {
       const response = await fetch(`http://localhost:8080/api/results/${analysisId}/zip-download`);
@@ -44,7 +44,7 @@ const AnalysisPage = () => {
     }
   }, [analysisId]);
 
-  // Pobieranie SVG
+  
   const fetchSvgUrls = useCallback(async () => {
     const endpoints = {
       svgMut: `/pair/${analysisId}/rna-plot-mut`,
@@ -68,7 +68,7 @@ const AnalysisPage = () => {
     }
   }, [analysisId]);
 
-  // Ustawianie WebSocket i reagowanie na status
+  
   useEffect(() => {
     const socket = io(`http://localhost:8080/${analysisId}`, {
       transports: ["websocket"],
@@ -90,7 +90,7 @@ const AnalysisPage = () => {
     };
   }, [analysisId]);
 
-  // Reagowanie na zakończenie analizy
+  
   useEffect(() => {
     if (message === "Analysis completed") {
       fetchResults();

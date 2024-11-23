@@ -174,7 +174,7 @@ def analyze_single():
     with open(wt_file_path, 'w') as wt_file:
         wt_file.write(wild_sequence + '\n')
 
-    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True)
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
     try:
         result = subprocess.run(
             ['python3', os.path.join(BASE_DIR, 'pipeline', 'script.py'), pipeline_dir],
@@ -187,7 +187,7 @@ def analyze_single():
     except subprocess.CalledProcessError as e:
         logger.error(f"Error while running script: {e.stderr}")
         return jsonify({'error': 'Analysis failed'}), 500
-    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True)
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
 
     
     

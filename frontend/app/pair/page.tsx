@@ -1,7 +1,6 @@
 "use client";
-import Link from 'next/link';
-import Image from 'next/image';
-
+import Link from "next/link";
+import Image from "next/image";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,16 +8,62 @@ import { useRouter } from "next/navigation";
 const PairPage = () => {
   const [mutantSequence, setMutantSequence] = useState("");
   const [wildSequence, setWildSequence] = useState("");
+  const [dbSnpId, setDbSnpId] = useState("");
   const [error, setError] = useState("");
+  const [fetchDbSnp, setFetchDbSnp] = useState(false); 
   const router = useRouter();
 
-  
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setSequence: (value: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      setSequence(text.trim());
+    };
+    reader.onerror = () => setError("Failed to read the file");
+    reader.readAsText(file);
+  };
+
+
+  const handleDbSnpSearch = async () => {
+    if (!dbSnpId) {
+      setError("Please provide a valid dbSNP ID");
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8080/api/dbsnp/${dbSnpId}`);
+      if (!response.ok) throw new Error("Failed to fetch sequence for dbSNP ID");
+
+      const data = await response.json();
+      setWildSequence(data.sequence);
+      setFetchDbSnp(true); 
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
+    }
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
+  
+    if (!(mutantSequence || wildSequence || fetchDbSnp)) {
+      setError("Please provide either mutant or wild-type sequence.");
+      return;
+    }
+
     try {
+      localStorage.setItem("mutantSequence", mutantSequence);
+      localStorage.setItem("wildSequence", wildSequence);
+
       const response = await fetch("http://localhost:8080/api/analyze/pair", {
         method: "POST",
         headers: {
@@ -29,8 +74,6 @@ const PairPage = () => {
 
       if (!response.ok) throw new Error("Failed to start analysis");
 
-      localStorage.setItem('mutantSequence', mutantSequence);
-      localStorage.setItem('wildSequence', wildSequence);
 
       const responseData = await response.json();
       router.push(`/pair/${responseData.analysis_id}`);
@@ -38,7 +81,6 @@ const PairPage = () => {
       setError(err instanceof Error ? err.message : "An unknown error occurred");
     }
   };
-
 
   const navLinkStyle = {
     textDecoration: "none",
@@ -51,9 +93,25 @@ const PairPage = () => {
   };
 
   return (
-    <div style={{ fontFamily: "Tahoma, sans-serif", backgroundColor: "#e6e2e7", minHeight: "100vh", padding: "20px" }}>
+    <div
+      style={{
+        fontFamily: "Tahoma, sans-serif",
+        backgroundColor: "#e6e2e7",
+        minHeight: "100vh",
+        padding: "20px",
+      }}
+    >
       {/* Pasek nawigacyjny */}
-      <div style={{ backgroundColor: "#87CEFA", padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #000" }}>
+      <div
+        style={{
+          backgroundColor: "#87CEFA",
+          padding: "10px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "2px solid #000",
+        }}
+      >
         <div>
           <Image src="/favicon.ico" alt="Logo" width={50} height={50} />
         </div>
@@ -72,44 +130,157 @@ const PairPage = () => {
           </Link>
         </div>
       </div>
-  
+
       {/* Formularz analizy sekwencji */}
-      <div style={{ maxWidth: "600px", margin: "30px auto", padding: "20px", backgroundColor: "#fff", border: "2px solid #000", borderRadius: "15px", boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)" }}>
-        <h1 style={{ textAlign: "center", color: "#333", marginBottom: "20px" }}>RNA Sequence Analysis</h1>
+      <div
+        style={{
+          maxWidth: "600px",
+          margin: "30px auto",
+          padding: "20px",
+          backgroundColor: "#fff",
+          border: "2px solid #000",
+          borderRadius: "15px",
+          boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            color: "#333",
+            marginBottom: "20px",
+          }}
+        >
+          RNA Sequence Analysis
+        </h1>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "20px" }}>
-            <label htmlFor="mutantSequence" style={{ color: "#555", display: "block", marginBottom: "10px", fontSize: "16px", fontWeight: "bold" }}>Mutant Sequence:</label>
+            <label
+              htmlFor="mutantSequence"
+              style={{
+                color: "#555",
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "16px",
+                fontWeight: "bold",
+              }}
+            >
+              Mutant Sequence:
+            </label>
             <input
               type="text"
               id="mutantSequence"
               value={mutantSequence}
               onChange={(e) => setMutantSequence(e.target.value)}
-              required
-              style={{ width: "100%", padding: "12px", border: "2px solid #000", borderRadius: "10px", fontSize: "14px", outline: "none", backgroundColor: "#f9f9f9" }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                fontSize: "14px",
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+            <input
+              type="file"
+              onChange={(e) => handleFileUpload(e, setMutantSequence)}
+              style={{ marginTop: "10px" }}
             />
           </div>
           <div style={{ marginBottom: "20px" }}>
-            <label htmlFor="wildSequence" style={{ color: "#555", display: "block", marginBottom: "10px", fontSize: "16px", fontWeight: "bold" }}>Wild-Type Sequence:</label>
+            <label
+              htmlFor="wildSequence"
+              style={{
+                color: "#555",
+                display: "block",
+                marginBottom: "10px",
+                fontSize: "16px",
+                fontWeight: "bold",
+              }}
+            >
+              Wild-Type Sequence:
+            </label>
             <input
               type="text"
               id="wildSequence"
               value={wildSequence}
               onChange={(e) => setWildSequence(e.target.value)}
-              required
-              style={{ width: "100%", padding: "12px", border: "2px solid #000", borderRadius: "10px", fontSize: "14px", outline: "none", backgroundColor: "#f9f9f9" }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                fontSize: "14px",
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+              }}
             />
+            <input
+              type="file"
+              onChange={(e) => handleFileUpload(e, setWildSequence)}
+              style={{ marginTop: "10px" }}
+            />
+            <input
+              type="text"
+              placeholder="Enter dbSNP ID"
+              value={dbSnpId}
+              onChange={(e) => setDbSnpId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                marginTop: "10px",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                fontSize: "14px",
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleDbSnpSearch}
+              style={{
+                width: "100%",
+                padding: "10px",
+                marginTop: "10px",
+                backgroundColor: "#ffc0cb",
+                color: "#000",
+                border: "2px solid #000",
+                borderRadius: "10px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold",
+              }}
+            >
+              Fetch Wild-Type from dbSNP
+            </button>
           </div>
-          <button type="submit" style={{ width: "100%", padding: "12px", backgroundColor: "#ffc0cb", color: "#000", border: "2px solid #000", borderRadius: "10px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" }}>
+          <button
+            type="submit"
+            style={{
+              width: "100%",
+              padding: "12px",
+              backgroundColor: "#ffc0cb",
+              color: "#000",
+              border: "2px solid #000",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "bold",
+            }}
+          >
             Analyze
           </button>
         </form>
-  
-        {error && <p style={{ color: "red", textAlign: "center", marginTop: "20px" }}>{error}</p>}
+
+        {error && (
+          <p style={{ color: "red", textAlign: "center", marginTop: "20px" }}>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
 };
-
-  
 
 export default PairPage;

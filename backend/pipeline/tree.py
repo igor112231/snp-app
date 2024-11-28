@@ -114,13 +114,13 @@ def add_edges(graph, subtree, previous_parent, current_parent, common_positions,
 
 # ============================================================================================
 
-parser = argparse.ArgumentParser(description="Script to process RNA mutations and analyze results.")
-parser.add_argument("path", help="Path to the directory containing sequence files.")
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description="Script to process RNA mutations and analyze results.")
+# parser.add_argument("path", help="Path to the directory containing sequence files.")
+# args = parser.parse_args()
 
-sequences_directory = args.path
+# sequences_directory = args.path
 
-file_path=os.path.join(sequences_directory, "RNAdistance-backtrack.txt")
+file_path=os.path.join("RNAdistance-backtrack.txt")
 
 # load HIT tree strings from file
 with open(file_path, 'r') as file:
@@ -175,5 +175,5 @@ graph2.node("R1", "R1", color="black", fillcolor="green", style="filled", shape=
 add_edges(graph2, tree_list2, "R1", "R1", common_positions, common_position_labels, pos_dict2, key_usage_count2, is_root=True)
 
 # save the graphs as SVG files
-graph1.render(os.path.join(sequences_directory,'tree_wt'), format='svg')
-graph2.render(os.path.join(sequences_directory,'tree_mut'), format='svg')
+graph1.render(os.path.join('tree_wt'), format='svg')
+graph2.render(os.path.join('tree_mut'), format='svg')

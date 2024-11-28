@@ -13,11 +13,11 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, cors_allowed_origins="*", path="/socket.io")
 
-
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 
 def run_step(step_name, command, cwd, analysis_id):
@@ -29,6 +29,8 @@ def run_step(step_name, command, cwd, analysis_id):
         socketio.emit('task_status', {'analysis_id': analysis_id, 'status': 'failed', 'step': step_name, 'error': str(e)}, broadcast=True, namespace=f'/{analysis_id}')
         return False
     return True
+
+
 
 def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
@@ -42,7 +44,7 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
     with open(mut_file_path, 'w') as mut_file:
         mut_file.write(mutant_sequence + '\n')
 
-    # Emitowanie statusu, że analiza się rozpoczęła
+    
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
 
     steps = [
@@ -51,15 +53,16 @@ def run_pipeline(mutant_sequence, wild_sequence, analysis_id):
         ("03-RNAdistance", ['bash', os.path.join(BASE_DIR, 'pipeline', '03-RNAdistance')]),
         ("04-RNAplot", ['bash', os.path.join(BASE_DIR, 'pipeline', '04-RNAplot')]),
         ("HITtree", ['python3', os.path.join(BASE_DIR, 'pipeline', 'tree.py'), pipeline_dir])
+        
     ]
 
-    
     for step_name, command in steps:
         if not run_step(step_name, command, pipeline_dir, analysis_id):
-            return 
+            return
 
-    
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis completed"}, broadcast=True, namespace=f'/{analysis_id}')
+
+
 
 @app.route('/api/analyze/pair', methods=['POST'])
 def analyze_pair():
@@ -82,15 +85,13 @@ def analyze_pair():
     return jsonify({"analysis_id": analysis_id}), 200
 
 
+
 @app.route('/api/results/pair/<analysis_id>', methods=['GET'])
 def get_combined_text(analysis_id):
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
 
     if not os.path.exists(pipeline_dir):
         return jsonify({'error': 'Analysis not found'}), 404
-
-
-    #tutaj odczyt odpowiednich danych z bazy danych
 
     filenames = [
         'RNApdist-result.txt',
@@ -109,40 +110,27 @@ def get_combined_text(analysis_id):
 
     return jsonify({'content': combined_content})
 
+
+
 @app.route('/api/results/pair/<analysis_id>/rna-plot-mut', methods=['GET'])
 def get_svg_mut(analysis_id):
-    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-    svg_path = os.path.join(pipeline_dir, 'mut-dotbracket.svg')
-
-    if not os.path.exists(svg_path):
-        return jsonify({'error': 'SVG file not found'}), 404
-
-    return send_file(svg_path, mimetype='image/svg+xml')
+    return get_svg(analysis_id, 'mut-dotbracket.svg')
 
 @app.route('/api/results/pair/<analysis_id>/rna-plot-wt', methods=['GET'])
 def get_svg_wt(analysis_id):
-    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-    svg_path = os.path.join(pipeline_dir, 'wt-dotbracket.svg')
-
-    if not os.path.exists(svg_path):
-        return jsonify({'error': 'SVG file not found'}), 404
-
-    return send_file(svg_path, mimetype='image/svg+xml')
+    return get_svg(analysis_id, 'wt-dotbracket.svg')
 
 @app.route('/api/results/pair/<analysis_id>/hit-tree_wt', methods=['GET'])
 def get_svg_hit_tree_wt(analysis_id):
-    pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-    svg_path = os.path.join(pipeline_dir, 'tree_wt.svg')
-
-    if not os.path.exists(svg_path):
-        return jsonify({'error': 'SVG file not found'}), 404
-
-    return send_file(svg_path, mimetype='image/svg+xml')
+    return get_svg(analysis_id, 'tree_wt.svg')
 
 @app.route('/api/results/pair/<analysis_id>/hit-tree_mut', methods=['GET'])
 def get_svg_hit_tree_mut(analysis_id):
+    return get_svg(analysis_id, 'tree_mut.svg')
+
+def get_svg(analysis_id, filename):
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
-    svg_path = os.path.join(pipeline_dir, 'tree_mut.svg')
+    svg_path = os.path.join(pipeline_dir, filename)
 
     if not os.path.exists(svg_path):
         return jsonify({'error': 'SVG file not found'}), 404
@@ -164,6 +152,7 @@ def analyze_single():
         return jsonify({'error': 'Invalid input data'}), 400
 
     analysis_id = str(uuid.uuid4())
+    socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
     pipeline_dir = os.path.join(BASE_DIR, 'pipeline', analysis_id)
     os.makedirs(pipeline_dir, exist_ok=True)
 
@@ -171,10 +160,10 @@ def analyze_single():
     with open(wt_file_path, 'w') as wt_file:
         wt_file.write(wild_sequence + '\n')
 
-    # Emit start status
+
     socketio.emit('task_status', {'analysis_id': analysis_id, 'status': "Analysis started"}, broadcast=True, namespace=f'/{analysis_id}')
 
-    # Define the analysis function
+
     def run_analysis():
         try:
             result = subprocess.run(
@@ -194,13 +183,8 @@ def analyze_single():
     analysis_thread = threading.Thread(target=run_analysis, daemon=True)
     analysis_thread.start()
 
-    
     return jsonify({"analysis_id": analysis_id}), 200
 
-    
-    
-    logger.debug(f"Response ?: {analysis_id}")
-    return jsonify({"analysis_id": analysis_id}), 200
 
 @app.route('/api/results/single/<analysis_id>', methods=['GET'])
 def get_csv_preview(analysis_id):
@@ -223,6 +207,8 @@ def get_csv_preview(analysis_id):
 
     except Exception as e:
         return jsonify({'error': f'Error reading the file: {str(e)}'}), 500
+
+
 
 @app.route('/api/results/<analysis_id>/zip-download', methods=['GET'])
 def download_results_zip(analysis_id):
